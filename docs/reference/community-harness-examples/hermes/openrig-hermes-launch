@@ -4,8 +4,8 @@
 #   - a new launch (OPENRIG_CONVERSATION set): Hermes creates the session titled with that name;
 #   - a resume (OPENRIG_RESUME_REF set): Hermes reopens that session, and never creates one. A name that matches nothing
 #     ends with Hermes's own "No session found" error, so a gone conversation isn't replaced by a new one.
-# Arguments after the launcher's name (a provider and model, say) go to every launch and resume alike: Hermes fixes them
-# when the session is created, and a resume may only repeat them.
+# Arguments after the launcher's name (a provider, model or --max-turns, say) go only to a new session: Hermes fixes them
+# when the session is created, and refuses them on a resume when they differ from that session's own.
 set -eu
 
 hermes="${OPENRIG_HERMES:-hermes}"
@@ -17,7 +17,7 @@ export HERMES_HOME
 mkdir -p "$HERMES_HOME"
 
 if [ -n "${OPENRIG_RESUME_REF:-}" ]; then
-  exec "$hermes" chat -c "$OPENRIG_RESUME_REF" "$@"
+  exec "$hermes" chat -c "$OPENRIG_RESUME_REF"
 fi
 if [ -n "${OPENRIG_CONVERSATION:-}" ]; then
   exec "$hermes" chat -c "$OPENRIG_CONVERSATION" --create-if-missing "$@"
