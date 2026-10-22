@@ -1,3 +1,4 @@
+import { communityHarnessResumes } from "./community-harness-presets.js";
 /** What restore knows about one saved seat when it reads the seat's restore policy. */
 export interface RestoreSeatFacts {
   /** The runtime the snapshot saved the seat with. */
@@ -29,7 +30,10 @@ export function isOrdinaryTerminalSeat(seat: RestoreSeatFacts): boolean {
 /** Why a community harness's seat waits for a decision at restore: its preset is launch-only, so nothing resumes it, a
  *  conversation its launcher reported included. Apply returns this; the preview forecasts it. */
 export function communityLaunchOnlyRestoreReason(runtime: string | null | undefined, logicalId: string): string {
-  return `Resume is unsupported for community harness "${runtime}": its preset is launch-only. No session was started, and the earlier conversation is left as it is. Re-run with --fresh ${logicalId} only if you want a new conversation.`;
+  const why = communityHarnessResumes(runtime)
+    ? "its saved conversation isn't one this harness's launcher reported (a former runtime's id), so it isn't passed to the launcher"
+    : "its preset is launch-only";
+  return `Resume is unsupported for community harness "${runtime}": ${why}. No session was started, and the earlier conversation is left as it is. Re-run with --fresh ${logicalId} only if you want a new conversation.`;
 }
 
 export function effectiveRestorePolicy(seat: RestoreSeatFacts, policy: string | null | undefined): string {

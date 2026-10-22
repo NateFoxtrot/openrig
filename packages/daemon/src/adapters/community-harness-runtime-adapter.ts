@@ -57,12 +57,17 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
     };
   }
 
-  async launchHarness(binding: NodeBinding, opts: { name: string; resumeToken?: string; forkSource?: ForkSource }): Promise<HarnessLaunchResult> {
+  async launchHarness(binding: NodeBinding, opts: { name: string; resumeToken?: string; resumeType?: string; forkSource?: ForkSource }): Promise<HarnessLaunchResult> {
     if (opts.forkSource) {
       return { ok: false, error: `Fork is unsupported: community harness "${this.runtime}" is launch-only. Remove session_source for this member.` };
     }
     const found = loadCommunityHarnessPreset(this.runtime, this.deps.presetsDir?.() ?? communityHarnessesDir());
     const resumeRef = opts.resumeToken?.trim();
+    // Only this harness's own conversation is ever handed to its launcher: a former runtime's id (a Codex thread, say) isn't.
+    if (resumeRef && found.ok && found.preset.resume && opts.resumeType !== `community:${this.runtime}`) {
+      return { ok: false, recovery: "retry_fresh",
+        error: `Resume isn't possible: the saved conversation is a "${opts.resumeType ?? "unknown"}" id, not one community harness "${this.runtime}" reported, so it isn't passed to its launcher. A new conversation starts only where the caller allows a fresh start; a restore stops and asks.` };
+    }
     if (resumeRef && !(found.ok && found.preset.resume)) {
       // A conversation id its launcher reported earlier doesn't make a launch-only harness resumable: say so, and let the
       // caller start a new conversation as it did before (it never resumes one silently).
@@ -102,12 +107,14 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
       if (!read.ok && "missing" in read) {
         return { ok: false, missingConversation: true, error: `Couldn't resume community harness "${this.runtime}": conversation ${resumeRef}: ${read.reason}.` };
       }
+      // Unconfirmed or different: the seat keeps the conversation it asked for, and the person decides. No retry.
       if (!read.ok) {
-        return { ok: true, warnings: [`community harness "${this.runtime}": resuming conversation ${resumeRef} isn't confirmed: ${read.reason}`] };
+        return { ok: false, recovery: "attention_required", resumeUnproven: true,
+          error: `Community harness "${this.runtime}": resuming conversation ${resumeRef} isn't confirmed: ${read.reason}. The seat keeps conversation ${resumeRef}; nothing was restarted.` };
       }
       if (read.nativeRef !== resumeRef) {
-        return { ok: true, resumeToken: read.nativeRef, resumeType: `community:${this.runtime}`, resumeProvenance: "launcher",
-          warnings: [`community harness "${this.runtime}": asked to resume conversation ${resumeRef}, its launcher reports conversation ${read.nativeRef} instead`] };
+        return { ok: false, recovery: "attention_required", resumeMismatch: { opened: read.nativeRef },
+          error: `Community harness "${this.runtime}": asked to resume conversation ${resumeRef}, its launcher reports conversation ${read.nativeRef} instead. The seat keeps conversation ${resumeRef}; if ${read.nativeRef} is right, set it with rig seat set-resume-token. Nothing was restarted.` };
       }
     }
     return read.ok

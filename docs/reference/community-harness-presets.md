@@ -11,13 +11,13 @@ installed.
 
 ```yaml
 format: 1
-name: cursor                    # must match the file name: lowercase letters, digits and hyphens
-command: openrig-cursor-launch  # one program and its arguments, typed into the seat's pane
+name: example-harness           # must match the file name: lowercase letters, digits and hyphens
+command: example-launch         # one program and its arguments, typed into the seat's pane
 maintainer: Example Maintainer
 limits:                         # what the maintainer says doesn't work
   - fork unsupported
 launch_result: true             # optional: the launcher reports the conversation it created (below)
-resume: true                    # optional, needs launch_result: the launcher can reopen a reported conversation
+resume: true                    # optional, needs launch_result; declare it only once your harness's resume is checked
 ```
 
 - **`command`** is a single program and its arguments. Shell syntax such as `|`, `&&`, `;`, redirections or `$(…)`
@@ -72,9 +72,12 @@ conversation to reopen. The launcher reports what happened in the same attempt's
   starts nothing. OpenRig reports the conversation missing and starts nothing either: it never replaces it with a new one.
 
 OpenRig also says so plainly when:
-- **no record is written:** the resume isn't confirmed;
-- **the record names a different conversation:** it records that one and says the launcher reported a different
-  conversation than it was asked to reopen;
+- **no usable record is written:** the resume isn't confirmed. The seat needs attention and keeps the conversation it
+  asked for; nothing is restarted;
+- **the record names a different conversation:** the seat needs attention and keeps the conversation it asked for. If
+  the reported one is right, set it with `rig seat set-resume-token`;
+- **the saved conversation isn't one this harness's launcher reported** (a former runtime's id, say): it isn't passed to
+  the launcher. A restore stops and asks, and elsewhere the resume says it isn't possible;
 - **the record's folder can't be made:** the launcher couldn't be told what to reopen, so nothing starts.
 
 **Not supported for community harnesses:** restarting a seat in place (`rig seat restart` is for Codex seats) and
