@@ -112,6 +112,21 @@ Agent's CLI.
 
 Copy both and maintain them as your own.
 
+## An example: OpenClaw
+
+[`community-harness-examples/openclaw/`](community-harness-examples/openclaw/) has a preset and a small launcher for
+OpenClaw's CLI.
+- **The launcher:** it runs `openclaw chat` (the TUI with `--local`) on the session key OpenRig named, with its own
+  OpenClaw state folder per seat, so the agent runs in the seat's pane with no Gateway.
+- **Its resume check:** before reopening a key, the launcher checks that the seat's `openclaw sessions --json` lists it,
+  and stops if not, so a gone conversation isn't recreated under its old key. That check is the launcher's code, not
+  OpenRig's.
+- **Resets must stay off:** OpenClaw can start a new conversation under the same key on a reset rule
+  (`session.reset`). That's off by default; with it on, a key no longer names one conversation.
+- **The preset:** it declares `names_conversation` but not `resume`, until both have been checked with a real OpenClaw.
+
+Copy both and maintain them as your own.
+
 **Not supported for community harnesses:** restarting a seat in place (`rig seat restart` is for Codex seats) and
 switching harness on a running seat. Each says so before anything changes.
 
