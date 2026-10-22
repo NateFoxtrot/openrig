@@ -114,7 +114,7 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
       }
       if (read.nativeRef !== resumeRef) {
         return { ok: false, recovery: "attention_required", resumeMismatch: { opened: read.nativeRef },
-          error: `Community harness "${this.runtime}": asked to resume conversation ${resumeRef}, its launcher reports conversation ${read.nativeRef} instead. The seat keeps conversation ${resumeRef}; if ${read.nativeRef} is right, set it with rig seat set-resume-token. Nothing was restarted.` };
+          error: `Community harness "${this.runtime}": asked to resume conversation ${resumeRef}, its launcher reports conversation ${read.nativeRef} instead. The seat keeps conversation ${resumeRef}, and OpenRig doesn't switch it to ${read.nativeRef}. Nothing was restarted.` };
       }
     }
     return read.ok

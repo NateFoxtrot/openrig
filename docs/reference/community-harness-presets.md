@@ -74,8 +74,8 @@ conversation to reopen. The launcher reports what happened in the same attempt's
 OpenRig also says so plainly when:
 - **no usable record is written:** the resume isn't confirmed. The seat needs attention and keeps the conversation it
   asked for; nothing is restarted;
-- **the record names a different conversation:** the seat needs attention and keeps the conversation it asked for. If
-  the reported one is right, set it with `rig seat set-resume-token`;
+- **the record names a different conversation:** the seat needs attention and keeps the conversation it asked for.
+  OpenRig doesn't switch it to the reported one;
 - **the saved conversation isn't one this harness's launcher reported** (a former runtime's id, say): it isn't passed to
   the launcher. A restore stops and asks, and elsewhere the resume says it isn't possible;
 - **the record's folder can't be made:** the launcher couldn't be told what to reopen, so nothing starts.

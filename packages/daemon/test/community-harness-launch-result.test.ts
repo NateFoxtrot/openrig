@@ -38,8 +38,10 @@ describe("a community harness whose launcher reports its conversation", () => {
     expect(await app.launchHarness(binding, { name: "w@r" }))
       .toEqual({ ok: true, resumeToken: "chat-123", resumeType: "community:synth", resumeProvenance: "launcher" });
     expect(sendShellCommand.mock.calls[0]![1]).toMatch(/^\/usr\/bin\/env OPENRIG_LAUNCH_RESULT='[^']+\.json' OPENRIG_LAUNCH_ATTEMPT=\S+ synth-launch --serve$/);
-    expect(communityHarnessLabel("synth", presets, { resumeType: "community:synth", resumeToken: "chat-123" }))
+    expect(communityHarnessLabel("synth", presets, { resumeType: "community:synth", resumeToken: "chat-123", resumeProvenance: "launcher" }))
       .toMatchObject({ identity: "reported by its launcher, not observed", reportedConversation: "chat-123" });
+    expect(communityHarnessLabel("synth", presets, { resumeType: "community:synth", resumeToken: "chat-123", resumeProvenance: null }))
+      .toMatchObject({ identity: "not confirmed" });
     expect(communityHarnessLabel("synth", presets)).toMatchObject({ identity: "not confirmed" });
   });
 
