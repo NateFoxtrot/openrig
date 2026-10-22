@@ -13,7 +13,7 @@ import { BUILT_IN_RUNTIMES, isCommunityHarnessRuntime } from "./built-in-runtime
 export { BUILT_IN_RUNTIMES, isCommunityHarnessRuntime };
 
 export const COMMUNITY_HARNESS_PRESET_FORMAT = 1;
-const FIELDS = ["format", "name", "command", "maintainer", "limits", "launch_result"] as const;
+const FIELDS = ["format", "name", "command", "maintainer", "limits", "launch_result", "resume"] as const;
 const NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 export interface CommunityHarnessPreset {
@@ -23,6 +23,8 @@ export interface CommunityHarnessPreset {
   limits: string[];
   /** The launcher writes one launch-result record per launch (the harness's own conversation id). */
   launchResult: boolean;
+  /** The launcher can reopen a conversation it reported (OPENRIG_RESUME_REF) and says whether it did. */
+  resume: boolean;
   path: string;
 }
 
@@ -59,8 +61,10 @@ function parsePreset(name: string, path: string, text: string): CommunityHarness
     return bad("limits must be a list of non-empty strings");
   }
   if (raw.launch_result !== undefined && typeof raw.launch_result !== "boolean") return bad("launch_result must be true or false");
+  if (raw.resume !== undefined && typeof raw.resume !== "boolean") return bad("resume must be true or false");
+  if (raw.resume === true && raw.launch_result !== true) return bad("resume needs launch_result: true, so the launcher can say which conversation it reopened");
   return { ok: true, preset: { name, command: raw.command as string, maintainer: raw.maintainer as string, limits: limits as string[],
-    launchResult: raw.launch_result === true, path } };
+    launchResult: raw.launch_result === true, resume: raw.resume === true, path } };
 }
 
 /** The first shell construct in a preset command, or null when it's one program with its arguments. The command is

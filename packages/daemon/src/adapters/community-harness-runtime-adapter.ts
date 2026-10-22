@@ -31,8 +31,9 @@ interface CommunityHarnessAdapterDeps {
 /**
  * A community harness, launched from its installed preset (`domain/community-harness-presets.ts`). It types the preset's
  * command into the seat's pane and is ready while the pane runs something other than a shell. That's readiness, not
- * identity: a process alone doesn't prove which session it is. It projects nothing, and refuses resume and fork,
- * which a launch-only preset doesn't support.
+ * identity: a process alone doesn't prove which session it is. It projects nothing and refuses fork. It resumes only a
+ * preset that declares `resume` (with `launch_result`): its launcher is told the conversation to reopen and reports
+ * what it did, and a conversation it says is gone is never replaced by a new one.
  */
 export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
   constructor(readonly runtime: string, private readonly deps: CommunityHarnessAdapterDeps) {}
@@ -61,7 +62,8 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
       return { ok: false, error: `Fork is unsupported: community harness "${this.runtime}" is launch-only. Remove session_source for this member.` };
     }
     const found = loadCommunityHarnessPreset(this.runtime, this.deps.presetsDir?.() ?? communityHarnessesDir());
-    if (opts.resumeToken) {
+    const resumeRef = opts.resumeToken?.trim();
+    if (resumeRef && !(found.ok && found.preset.resume)) {
       // A conversation id its launcher reported earlier doesn't make a launch-only harness resumable: say so, and let the
       // caller start a new conversation as it did before (it never resumes one silently).
       return found.ok && found.preset.launchResult
@@ -76,7 +78,8 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
     if (found.preset.launchResult) {
       try { attempt = newLaunchAttempt(session, this.deps.launchResultRoot?.() ?? launchResultRoot()); }
       catch (error) { return { ok: false, error: `Couldn't start community harness "${this.runtime}": its launch-result folder: ${(error as Error).message}` }; }
-      program = `/usr/bin/env OPENRIG_LAUNCH_RESULT=${shellQuote(attempt.file)} OPENRIG_LAUNCH_ATTEMPT=${attempt.attempt} ${program}`;
+      program = `/usr/bin/env OPENRIG_LAUNCH_RESULT=${shellQuote(attempt.file)} OPENRIG_LAUNCH_ATTEMPT=${attempt.attempt}`
+        + `${resumeRef ? ` OPENRIG_RESUME_REF=${shellQuote(resumeRef)}` : ""} ${program}`;
     }
     const command = this.deps.seatLaunchEnvironment
       ? await this.deps.seatLaunchEnvironment.command(session, program, { runtime: this.runtime })
@@ -85,6 +88,19 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
     if (!sent.ok) return { ok: false, error: `Couldn't start community harness "${this.runtime}": ${sent.message}` };
     if (!attempt) return { ok: true };
     const read = await waitForLaunchResult(attempt, this.runtime, { ...this.deps.launchResultWait, root: this.deps.launchResultRoot?.() ?? launchResultRoot() });
+    if (resumeRef) {
+      // A conversation that's gone is never replaced by a new one: nothing started, and the person decides.
+      if (!read.ok && "missing" in read) {
+        return { ok: false, missingConversation: true, error: `Couldn't resume community harness "${this.runtime}": conversation ${resumeRef}: ${read.reason}.` };
+      }
+      if (!read.ok) {
+        return { ok: true, warnings: [`community harness "${this.runtime}": resuming conversation ${resumeRef} isn't confirmed: ${read.reason}`] };
+      }
+      if (read.nativeRef !== resumeRef) {
+        return { ok: true, resumeToken: read.nativeRef, resumeType: `community:${this.runtime}`, resumeProvenance: "launcher",
+          warnings: [`community harness "${this.runtime}": asked to resume conversation ${resumeRef}, its launcher reports conversation ${read.nativeRef} instead`] };
+      }
+    }
     return read.ok
       ? { ok: true, resumeToken: read.nativeRef, resumeType: `community:${this.runtime}`, resumeProvenance: "launcher" }
       : { ok: true, warnings: [`community harness "${this.runtime}": its launch identity is unavailable: ${read.reason}`] };

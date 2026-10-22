@@ -15,15 +15,16 @@ name: cursor                    # must match the file name: lowercase letters, d
 command: openrig-cursor-launch  # one program and its arguments, typed into the seat's pane
 maintainer: Example Maintainer
 limits:                         # what the maintainer says doesn't work
-  - resume unsupported
+  - fork unsupported
 launch_result: true             # optional: the launcher reports the conversation it created (below)
+resume: true                    # optional, needs launch_result: the launcher can reopen a reported conversation
 ```
 
 - **`command`** is a single program and its arguments. Shell syntax such as `|`, `&&`, `;`, redirections or `$(…)`
   is refused: put it in a script and name the script.
 - **Built-in runtime names are reserved.** A preset can't replace `claude-code`, `codex` or the other built-ins.
 - **Unknown fields are refused,** so a preset written for a newer OpenRig says so instead of half-working.
-- **Fork isn't supported, and neither is resume.** Neither is placing skills, guidance or startup files. The seat is
+- **Fork isn't supported, and resume only as described below.** Neither is placing skills, guidance or startup files. The seat is
   called ready while something other than a shell runs in its pane, which says nothing about which conversation it is.
 
 ## Reporting the conversation a launch created (`launch_result: true`)
@@ -52,8 +53,21 @@ The seat still starts, with its identity **unavailable** and the reason named, w
 
 None of these means the conversation is gone.
 
-A reported id doesn't make the harness resumable. When OpenRig would resume such a seat (a restore, for example), it says
-resume is unsupported and starts a new conversation, as it did before.
+A reported id doesn't make the harness resumable on its own. Without `resume: true`, when OpenRig would resume such a
+seat (a restore, for example), it says resume is unsupported and starts a new conversation, as it did before.
+
+## Reopening a reported conversation (`resume: true`)
+
+With `resume: true` as well, a resume starts the launcher with `OPENRIG_RESUME_REF` set to the conversation to reopen.
+The launcher reports what happened in the same attempt's file:
+- **Reopened:** the usual record, with that conversation as `nativeRef`.
+- **Gone:** `{ "format": 1, "attempt": "…", "harness": "cursor", "error": "missing", "producer": "…" }`. The launcher
+  starts nothing. OpenRig reports the conversation missing and starts nothing either: it never replaces it with a new one.
+
+OpenRig also says so plainly when:
+- **no record is written:** the resume isn't confirmed;
+- **the record names a different conversation:** it records that one and says the launcher reported a different
+  conversation than it was asked to reopen.
 
 **Not supported for community harnesses:** restarting a seat in place (`rig seat restart` is for Codex seats) and
 switching harness on a running seat. Each says so before anything changes.

@@ -76,3 +76,37 @@ describe("a community harness whose launcher reports its conversation", () => {
     expect(loadCommunityHarnessPreset("synth", presets)).toMatchObject({ ok: false, message: expect.stringContaining("launch_result must be true or false") });
   });
 });
+
+describe("a community harness whose launcher can reopen a reported conversation", () => {
+  const RESUMABLE = `${PRESET}resume: true\n`;
+
+  it("tells the launcher which conversation to reopen, and records it when the launcher reports it reopened", async () => {
+    const { app, sendShellCommand } = seat(good, RESUMABLE);
+    expect(await app.launchHarness(binding, { name: "w@r", resumeToken: "chat-123" }))
+      .toEqual({ ok: true, resumeToken: "chat-123", resumeType: "community:synth", resumeProvenance: "launcher" });
+    expect(sendShellCommand.mock.calls[0]![1]).toContain(" OPENRIG_RESUME_REF='chat-123' synth-launch --serve");
+  });
+
+  it("starts nothing, and never a new conversation, when the launcher says the conversation is gone", async () => {
+    const { app } = seat((attempt) => ({ format: 1, attempt, harness: "synth", error: "missing", producer: "synth-launch 1.0" }), RESUMABLE);
+    const result = await app.launchHarness(binding, { name: "w@r", resumeToken: "chat-123" });
+    expect(result).toEqual({ ok: false, missingConversation: true,
+      error: `Couldn't resume community harness "synth": conversation chat-123: ${result.ok ? "" : result.error.split("chat-123: ")[1]}` });
+    expect(result).toMatchObject({ error: expect.stringContaining("says the conversation doesn't exist, and started nothing") });
+    expect(result).not.toHaveProperty("recovery");
+  });
+
+  it.each([
+    ["no record is written", undefined, "resuming conversation chat-123 isn't confirmed"],
+    ["the launcher reports another conversation", (a: string) => ({ ...good(a), nativeRef: "chat-999" }), "asked to resume conversation chat-123, its launcher reports conversation chat-999 instead"],
+  ] as const)("says so plainly when %s", async (_case, record, warning) => {
+    const { app } = seat(record as never, RESUMABLE);
+    expect(await app.launchHarness(binding, { name: "w@r", resumeToken: "chat-123" })).toMatchObject({ ok: true, warnings: [expect.stringContaining(warning)] });
+  });
+
+  it("needs launch_result for resume, so the launcher can say which conversation it reopened", () => {
+    const presets = scratch("harness-presets-");
+    writeFileSync(join(presets, "synth.yaml"), `${PRESET.replace("launch_result: true\n", "")}resume: true\n`);
+    expect(loadCommunityHarnessPreset("synth", presets)).toMatchObject({ ok: false, message: expect.stringContaining("resume needs launch_result: true") });
+  });
+});
