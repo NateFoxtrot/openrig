@@ -89,6 +89,9 @@ export function claudeResumeRotation(row: {
 export const RESUME_PROVENANCE_RANK: Record<string, number> = {
   scrape: 0,
   adoption: 1,
+  // A community harness's launcher reporting the conversation it created for this launch: the harness's own account,
+  // like a hook, not proof the harness used it.
+  launcher: 2,
   hook: 2,
   operator: 3,
 };
@@ -510,7 +513,7 @@ export class SessionRegistry {
     this.db.prepare("UPDATE sessions SET agent_app = ? WHERE id = ?").run(app, sessionId);
   }
 
-  updateResumeToken(sessionId: string, type: string, token: string, provenance?: "hook" | "scrape" | "operator" | "adoption"): boolean {
+  updateResumeToken(sessionId: string, type: string, token: string, provenance?: "hook" | "scrape" | "operator" | "adoption" | "launcher"): boolean {
     if (typeof token !== "string" || token.trim().length === 0) return false;
     if (provenance) {
       const existing = this.db.prepare(
