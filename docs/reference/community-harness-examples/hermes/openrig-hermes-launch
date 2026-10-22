@@ -4,8 +4,9 @@
 #   - a new launch (OPENRIG_CONVERSATION set): Hermes creates the session titled with that name;
 #   - a resume (OPENRIG_RESUME_REF set): Hermes reopens that session, and never creates one. A name that matches nothing
 #     ends with Hermes's own "No session found" error, so a gone conversation isn't replaced by a new one.
-# Arguments after the launcher's name (a provider, model or --max-turns, say) go only to a new session: Hermes fixes them
-# when the session is created, and refuses them on a resume when they differ from that session's own.
+# Put the model, provider and max turns in the seat's Hermes config.yaml, not on the command line. Hermes v0.22.4's CLI
+# creates a `-c <name> --create-if-missing` session with no launch flags, then reopens it and refuses any creation flag
+# that differs, so such flags fail even on a new name. Other arguments go only to a new session, never to a resume.
 set -eu
 
 hermes="${OPENRIG_HERMES:-hermes}"
