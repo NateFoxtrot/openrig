@@ -136,6 +136,13 @@ export function communityHarnessResumesToken(name: string | null | undefined, re
   return !!name && resumeType === `community:${name}` && communityHarnessResumes(name, dir);
 }
 
+/** Whether restore stops a community harness's seat at its own gate: the preset can't resume, or the seat holds a token
+ *  that isn't this harness's own. A seat with no token passes on to the usual "no resume token" stop. */
+export function communityHarnessStopsRestore(name: string | null | undefined, resumeType: string | null | undefined,
+  resumeToken: string | null | undefined, dir: string = communityHarnessesDir()): boolean {
+  return !name || !communityHarnessResumes(name, dir) || (!!resumeToken && resumeType !== `community:${name}`);
+}
+
 /** Every preset file in the directory, usable or not, sorted by name. */
 export function listCommunityHarnessPresets(dir: string = communityHarnessesDir()): CommunityHarnessPresetLookup[] {
   if (!existsSync(dir)) return [];
@@ -161,8 +168,11 @@ export interface CommunityHarnessLabel {
 }
 
 export function communityHarnessLabel(runtime: string, dir: string = communityHarnessesDir(),
-  session?: { resumeType: string | null; resumeToken: string | null }): CommunityHarnessLabel {
-  const reported = session?.resumeType === `community:${runtime}` && session.resumeToken ? session.resumeToken : undefined;
+  session?: { resumeType: string | null; resumeToken: string | null; resumeProvenance: string | null }): CommunityHarnessLabel {
+  // Only a token this launch's launcher reported is labelled so: a resume that needed attention keeps the conversation it
+  // attempted, with no launcher provenance, and that isn't one the launcher reported.
+  const reported = session?.resumeType === `community:${runtime}` && session.resumeProvenance === "launcher" && session.resumeToken
+    ? session.resumeToken : undefined;
   const found = loadCommunityHarnessPreset(runtime, dir);
   return {
     harness: runtime, community: true, testedByOpenRig: false,
