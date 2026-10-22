@@ -84,7 +84,7 @@ const LAUNCH_DEPENDENCY_KINDS = new Set(["delegates_to", "spawned_by"]);
 import { resolveActiveSnapshotSession, activeOccupantAmbiguityError, absentSeatResumeHistory, absentSeatResumeHistoryError } from "./active-occupant.js";
 import { effectiveRestorePolicy, type RestoreSeatFacts, communityLaunchOnlyRestoreReason } from "./restore-policy.js";
 import { communityHarnessOf } from "./built-in-runtimes.js";
-import { communityHarnessResumes } from "./community-harness-presets.js";
+import { communityHarnessResumesToken } from "./community-harness-presets.js";
 import { seatAdapter } from "../adapters/community-harness-runtime-adapter.js";
 import { pluginPathsOf } from "./claude-core-plugin-env.js";
 import { seatLaunchAdditionsForLaunch, systemPromptPendingNoteForNode, type SeatLaunchAdditions } from "./seat-launch-additions.js";
@@ -149,7 +149,9 @@ function snapshotLaunchOutcome(data: SnapshotData, nodeId: string, runtime: stri
   }
   const policy = effectiveRestorePolicy(seatFacts(data, nodeId, savedRuntime, runtime), session.restorePolicy);
   if (policy !== "resume_if_possible") return { kind: "fresh", why: `saves this seat with restore policy '${policy}'` };
-  if (communityHarnessOf(session.communityHarness, runtime)) return { kind: "decision", why: "is a community harness whose preset is launch-only (resume unsupported)" };
+  if (communityHarnessOf(session.communityHarness, runtime) && !communityHarnessResumesToken(runtime, session.resumeType)) {
+    return { kind: "decision", why: "is a community harness whose preset can't resume this seat's saved conversation (launch-only, or the id isn't this harness's own)" };
+  }
   if (!session.resumeToken) return { kind: "decision", why: "has no resume token for this seat" };
   if (!session.resumeType || session.resumeType === "none") return { kind: "fresh", why: "records no resume source for this seat" };
   return { kind: "resume" };
@@ -1028,7 +1030,7 @@ export class RestoreOrchestrator {
       const resumeSourceRecorded = !!snapSession?.resumeType && snapSession.resumeType !== "none";
       // A launch-only community harness (its preset declares no resume): nothing resumes it, so even a saved token stops here.
       if (policy === "resume_if_possible" && snapSession && !freshRequested && communityHarnessOf(snapSession.communityHarness, node.runtime)
-        && !communityHarnessResumes(node.runtime)) {
+        && !communityHarnessResumesToken(node.runtime, snapSession.resumeType)) {
         return {
           nodeId,
           logicalId: node.logicalId,
@@ -1662,7 +1664,7 @@ export class RestoreOrchestrator {
               // Only the runtime's own report that the conversation doesn't exist rolls the seat back
               // as unresumable. A pane that went back to its shell for another reason stays failed,
               // with its pane and binding kept, so its output can still be read.
-              if (startupResult.recovery === "retry_fresh" && startupResult.missingConversation) {
+              if (startupResult.missingConversation) {
                 await this.rollbackToZeroSession(node.id, sessionName, launchResult?.session.id, priorState);
                 return {
                   nodeId: node.id,

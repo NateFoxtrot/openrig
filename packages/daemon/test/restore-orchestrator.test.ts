@@ -2316,7 +2316,7 @@ describe("RestoreOrchestrator", () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.result.nodes.map((node) => node.status)).toEqual(["attention_required", "attention_required", "attention_required"]);
     expect(seen).toHaveLength(3);
-    for (const opts of seen) expect(Object.keys(opts).sort()).toEqual(["name", "resumeToken"]);
+    for (const opts of seen) expect(Object.keys(opts).sort()).toEqual(["name", "resumeToken", "resumeType"]);
   });
 
   it("pod-aware chooser attention preserves the attempted native token for no-input reconciliation", async () => {
@@ -2769,7 +2769,15 @@ describe("RestoreOrchestrator", () => {
     }
   });
 
-  it("a community harness whose preset declares resume is resumed with its reported conversation, in the preview and in restore", async () => {
+  it.each([
+    ["its own conversation reopens", "community:synth-harness", { ok: true, resumeToken: "chat-123", resumeType: "community:synth-harness", resumeProvenance: "launcher" },
+      "resume-original", "resumed", 1],
+    ["the launcher reports another conversation", "community:synth-harness", { ok: false, recovery: "attention_required", resumeMismatch: { opened: "chat-999" },
+      error: "asked to resume conversation chat-123, its launcher reports conversation chat-999 instead. The seat keeps conversation chat-123" }, "resume-original", "attention_required", 1],
+    ["the conversation is gone", "community:synth-harness", { ok: false, missingConversation: true, error: "conversation chat-123: its launcher says the conversation doesn't exist, and started nothing" },
+      "resume-original", "awaiting-decision", 1],
+    ["the saved token is a former runtime's", "codex_id", { ok: true }, "awaiting-decision", "awaiting-decision", 0],
+  ] as const)("a community harness whose preset declares resume, when %s: the preview and restore agree on the seat's outcome", async (_case, tokenType, launch, forecast, status, calls) => {
     const saved = process.env["OPENRIG_HOME"];
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "restore-community-resume-"));
     try {
@@ -2782,20 +2790,28 @@ describe("RestoreOrchestrator", () => {
       const node = rigRepo.addNode(rig.id, "dev.impl", { runtime: "synth-harness", podId: "pod-community-resume" });
       const session = sessionRegistry.registerSession(node.id, "dev-impl@test-rig");
       sessionRegistry.updateStatus(session.id, "running");
-      sessionRegistry.recordLauncherReportedToken(session.id, "community:synth-harness", "chat-123");
+      if (tokenType === "codex_id") sessionRegistry.updateResumeToken(session.id, "codex_id", "codex-thread-1");
+      else sessionRegistry.recordLauncherReportedToken(session.id, tokenType, "chat-123");
       sessionRegistry.recordCommunityHarnessSelection(session.id, "synth-harness");
       db.prepare("INSERT INTO node_startup_context (node_id, projection_entries_json, resolved_files_json, startup_actions_json, runtime) VALUES (?, ?, ?, ?, ?)").run(node.id, "[]", "[]", "[]", "synth-harness");
       const snap = snapshotCapture.captureSnapshot(rig.id, "test");
       sessionRegistry.updateStatus(session.id, "exited");
       db.prepare("DELETE FROM bindings WHERE node_id = ?").run(node.id);
       const savedSnap = snapshotRepo.getSnapshot(snap.id)!;
-      expect(buildRestorePlanPreview(rigRepo.getRig(rig.id)!, savedSnap, savedSnap.data.sessions).nodes[0]).toMatchObject({ intendedAction: "resume-original" });
-      const launchHarness = vi.fn(async () => ({ ok: true as const, resumeToken: "chat-123", resumeType: "community:synth-harness", resumeProvenance: "launcher" as const }));
+      expect(buildRestorePlanPreview(rigRepo.getRig(rig.id)!, savedSnap, savedSnap.data.sessions).nodes[0]).toMatchObject({ intendedAction: forecast });
+      const launchHarness = vi.fn(async () => launch);
       const mockAdapter = { runtime: "synth-harness", listInstalled: vi.fn(async () => []), project: vi.fn(async () => ({ projected: [], skipped: [], failed: [] })),
         deliverStartup: vi.fn(async () => ({ delivered: 0, failed: [] })), checkReady: vi.fn(async () => ({ ready: true })), launchHarness };
-      await createOrchestrator().restore(snap.id, { adapters: { "synth-harness": mockAdapter } });
-      expect(launchHarness).toHaveBeenCalledTimes(1);
-      expect((launchHarness.mock.calls[0] as unknown[])[1]).toMatchObject({ resumeToken: "chat-123" });
+      const result = await createOrchestrator().restore(snap.id, { adapters: { "synth-harness": mockAdapter as never } });
+      expect(result.ok, JSON.stringify(result)).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.nodes.find((n) => n.nodeId === node.id)).toMatchObject({ status });
+      expect(launchHarness).toHaveBeenCalledTimes(calls);
+      if (calls) expect((launchHarness.mock.calls[0] as unknown[])[1]).toMatchObject({ resumeToken: "chat-123", resumeType: "community:synth-harness" });
+      // A different or gone conversation never becomes the seat's own: the seat still holds the one it asked for.
+      if (tokenType !== "codex_id") {
+        expect(db.prepare("SELECT resume_token AS t FROM sessions WHERE node_id = ? ORDER BY id LIMIT 1").get(node.id)).toEqual({ t: "chat-123" });
+      }
     } finally {
       if (saved === undefined) delete process.env["OPENRIG_HOME"]; else process.env["OPENRIG_HOME"] = saved;
       fs.rmSync(home, { recursive: true, force: true });

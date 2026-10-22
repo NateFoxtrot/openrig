@@ -129,6 +129,13 @@ export function communityHarnessResumes(name: string | null | undefined, dir: st
   return found.ok && found.preset.resume;
 }
 
+/** Whether a saved conversation is one this community harness can be asked to reopen: its preset declares `resume` and
+ *  the token is this harness's own (`community:<name>`), never a former runtime's. */
+export function communityHarnessResumesToken(name: string | null | undefined, resumeType: string | null | undefined,
+  dir: string = communityHarnessesDir()): boolean {
+  return !!name && resumeType === `community:${name}` && communityHarnessResumes(name, dir);
+}
+
 /** Every preset file in the directory, usable or not, sorted by name. */
 export function listCommunityHarnessPresets(dir: string = communityHarnessesDir()): CommunityHarnessPresetLookup[] {
   if (!existsSync(dir)) return [];
