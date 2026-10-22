@@ -72,5 +72,16 @@ OpenRig also says so plainly when:
 **Not supported for community harnesses:** restarting a seat in place (`rig seat restart` is for Codex seats) and
 switching harness on a running seat. Each says so before anything changes.
 
+## An example: Cursor
+
+[`community-harness-examples/cursor/`](community-harness-examples/cursor/) has a preset and a small launcher for Cursor's
+CLI.
+- **The launcher:** it reports the chat `cursor-agent create-chat` makes, then reopens it, with its own Cursor config
+  folder per seat.
+- **The preset:** it declares `launch_result` but not `resume`, until Cursor's behaviour for a missing chat id has been
+  checked.
+
+Copy both and maintain them as your own.
+
 The launcher is the contributor's code, in the contributor's package. OpenRig runs no code from a preset and loads no
 module into its daemon. A preset that sets `launch_result` is refused by an older OpenRig, which doesn't know the field.

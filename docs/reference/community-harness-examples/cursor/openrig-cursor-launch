@@ -1,0 +1,46 @@
+#!/bin/sh
+# A reference launcher for Cursor's CLI as an OpenRig community harness. Copy it, own it, and change it: OpenRig
+# doesn't ship or run it. It follows docs/reference/community-harness-presets.md:
+#   - a new launch: `cursor-agent create-chat` prints a new chat id; the launcher reports it, then reopens that chat;
+#   - a resume (OPENRIG_RESUME_REF set): it reopens the chat it was asked for and reports that id.
+# It can't tell whether a chat still exists before reopening it, so its preset doesn't declare `resume` until Cursor's
+# behaviour for a missing chat id has been checked. Cursor's chat-id facts come from the probe in OpenRig issue #352.
+set -eu
+
+producer="openrig-cursor-launch 1"
+cursor="${OPENRIG_CURSOR_AGENT:-cursor-agent}"
+
+# Each seat gets its own Cursor config folder, so `--model` and approval settings don't rewrite the person's own
+# ~/.cursor/cli-config.json. Cursor's login isn't affected.
+CURSOR_CONFIG_DIR="${OPENRIG_HOME:-$HOME/.openrig}/state/cursor/${OPENRIG_NODE_ID:-${OPENRIG_SESSION_NAME:-default}}"
+export CURSOR_CONFIG_DIR
+mkdir -p "$CURSOR_CONFIG_DIR"
+
+# Write this attempt's record, all at once, where OpenRig asked for it (nothing when it didn't ask).
+report() {
+  [ -n "${OPENRIG_LAUNCH_RESULT:-}" ] || return 0
+  tmp="$OPENRIG_LAUNCH_RESULT.$$.tmp"
+  printf '%s\n' "$1" > "$tmp"
+  mv "$tmp" "$OPENRIG_LAUNCH_RESULT"
+}
+plain_id() { case "$1" in ''|*[!A-Za-z0-9._:-]*) return 1 ;; *) return 0 ;; esac; }
+
+if [ -n "${OPENRIG_RESUME_REF:-}" ]; then
+  id="$OPENRIG_RESUME_REF"
+  plain_id "$id" || { echo "openrig-cursor-launch: refusing an unusual chat id" >&2; exit 2; }
+else
+  # create-chat prints the id but doesn't exit (see #352): read the first line, then stop it.
+  out=$(mktemp)
+  "$cursor" create-chat > "$out" 2>/dev/null &
+  pid=$!
+  i=0
+  while [ "$i" -lt 100 ] && [ ! -s "$out" ]; do sleep 0.1; i=$((i + 1)); done
+  kill "$pid" 2>/dev/null || true
+  id=$(head -n 1 "$out" | tr -d '\r\n\t ')
+  rm -f "$out"
+  # No usable id: report nothing, so OpenRig shows the identity as unavailable, and start Cursor on its own chat.
+  plain_id "$id" || exec "$cursor" --trust "$@"
+fi
+
+report "{\"format\":1,\"attempt\":\"${OPENRIG_LAUNCH_ATTEMPT:-}\",\"harness\":\"cursor\",\"nativeRef\":\"$id\",\"producer\":\"$producer\"}"
+exec "$cursor" --resume "$id" --trust "$@"
