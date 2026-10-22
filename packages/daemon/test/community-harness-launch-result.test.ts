@@ -123,6 +123,19 @@ describe("a community harness whose launcher can reopen a reported conversation"
     expect(await app.launchHarness(binding, { name: "w@r", resumeToken: "chat-123" })).toMatchObject({ ok: true, warnings: [expect.stringContaining(warning)] });
   });
 
+  it("starts nothing when a resume's record folder can't be made, since the launcher couldn't be told what to reopen", async () => {
+    const blocked = join(scratch("harness-blocked-"), "a-file");
+    writeFileSync(blocked, "not a folder");
+    const presets = scratch("harness-presets-");
+    writeFileSync(join(presets, "synth.yaml"), RESUMABLE);
+    const sendShellCommand = vi.fn(async () => ({ ok: true as const }));
+    const app = new CommunityHarnessRuntimeAdapter("synth", { tmux: { hasSession: vi.fn(async () => true), getPaneCommand: vi.fn(async () => "node"), sendShellCommand },
+      presetsDir: () => presets, launchResultRoot: () => blocked });
+    expect(await app.launchHarness(binding, { name: "w@r", resumeToken: "chat-123" }))
+      .toMatchObject({ ok: false, error: expect.stringContaining("its launch-result folder couldn't be made") });
+    expect(sendShellCommand).not.toHaveBeenCalled();
+  });
+
   it("needs launch_result for resume, so the launcher can say which conversation it reopened", () => {
     const presets = scratch("harness-presets-");
     writeFileSync(join(presets, "synth.yaml"), `${PRESET.replace("launch_result: true\n", "")}resume: true\n`);

@@ -122,6 +122,13 @@ export function loadCommunityHarnessPreset(name: string, dir: string = community
   return parsePreset(name, path, text);
 }
 
+/** Whether a community harness's installed preset declares `resume` (its launcher reopens a reported conversation). */
+export function communityHarnessResumes(name: string | null | undefined, dir: string = communityHarnessesDir()): boolean {
+  if (!name) return false;
+  const found = loadCommunityHarnessPreset(name, dir);
+  return found.ok && found.preset.resume;
+}
+
 /** Every preset file in the directory, usable or not, sorted by name. */
 export function listCommunityHarnessPresets(dir: string = communityHarnessesDir()): CommunityHarnessPresetLookup[] {
   if (!existsSync(dir)) return [];

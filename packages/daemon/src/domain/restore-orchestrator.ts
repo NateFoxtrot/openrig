@@ -84,6 +84,7 @@ const LAUNCH_DEPENDENCY_KINDS = new Set(["delegates_to", "spawned_by"]);
 import { resolveActiveSnapshotSession, activeOccupantAmbiguityError, absentSeatResumeHistory, absentSeatResumeHistoryError } from "./active-occupant.js";
 import { effectiveRestorePolicy, type RestoreSeatFacts, communityLaunchOnlyRestoreReason } from "./restore-policy.js";
 import { communityHarnessOf } from "./built-in-runtimes.js";
+import { communityHarnessResumes } from "./community-harness-presets.js";
 import { seatAdapter } from "../adapters/community-harness-runtime-adapter.js";
 import { pluginPathsOf } from "./claude-core-plugin-env.js";
 import { seatLaunchAdditionsForLaunch, systemPromptPendingNoteForNode, type SeatLaunchAdditions } from "./seat-launch-additions.js";
@@ -1025,8 +1026,9 @@ export class RestoreOrchestrator {
       const snapSession = occupantResolution.kind === "resolved" ? occupantResolution.session : null;
       const policy = effectiveRestorePolicy(seatFacts(data, nodeId, node.runtime, liveNode ? liveNode.runtime : node.runtime), snapSession?.restorePolicy);
       const resumeSourceRecorded = !!snapSession?.resumeType && snapSession.resumeType !== "none";
-      // A community harness is launch-only: nothing resumes it, so even a saved token (say, from a former runtime) stops here.
-      if (policy === "resume_if_possible" && snapSession && !freshRequested && communityHarnessOf(snapSession.communityHarness, node.runtime)) {
+      // A launch-only community harness (its preset declares no resume): nothing resumes it, so even a saved token stops here.
+      if (policy === "resume_if_possible" && snapSession && !freshRequested && communityHarnessOf(snapSession.communityHarness, node.runtime)
+        && !communityHarnessResumes(node.runtime)) {
         return {
           nodeId,
           logicalId: node.logicalId,

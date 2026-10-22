@@ -2769,6 +2769,39 @@ describe("RestoreOrchestrator", () => {
     }
   });
 
+  it("a community harness whose preset declares resume is resumed with its reported conversation, in the preview and in restore", async () => {
+    const saved = process.env["OPENRIG_HOME"];
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "restore-community-resume-"));
+    try {
+      process.env["OPENRIG_HOME"] = home;
+      fs.mkdirSync(path.join(home, "community-harnesses"));
+      fs.writeFileSync(path.join(home, "community-harnesses", "synth-harness.yaml"),
+        "format: 1\nname: synth-harness\ncommand: synth-launch\nmaintainer: Example\nlimits: []\nlaunch_result: true\nresume: true\n");
+      const rig = rigRepo.createRig("test-rig");
+      db.prepare("INSERT INTO pods (id, rig_id, label) VALUES (?, ?, ?)").run("pod-community-resume", rig.id, "Dev");
+      const node = rigRepo.addNode(rig.id, "dev.impl", { runtime: "synth-harness", podId: "pod-community-resume" });
+      const session = sessionRegistry.registerSession(node.id, "dev-impl@test-rig");
+      sessionRegistry.updateStatus(session.id, "running");
+      sessionRegistry.recordLauncherReportedToken(session.id, "community:synth-harness", "chat-123");
+      sessionRegistry.recordCommunityHarnessSelection(session.id, "synth-harness");
+      db.prepare("INSERT INTO node_startup_context (node_id, projection_entries_json, resolved_files_json, startup_actions_json, runtime) VALUES (?, ?, ?, ?, ?)").run(node.id, "[]", "[]", "[]", "synth-harness");
+      const snap = snapshotCapture.captureSnapshot(rig.id, "test");
+      sessionRegistry.updateStatus(session.id, "exited");
+      db.prepare("DELETE FROM bindings WHERE node_id = ?").run(node.id);
+      const savedSnap = snapshotRepo.getSnapshot(snap.id)!;
+      expect(buildRestorePlanPreview(rigRepo.getRig(rig.id)!, savedSnap, savedSnap.data.sessions).nodes[0]).toMatchObject({ intendedAction: "resume-original" });
+      const launchHarness = vi.fn(async () => ({ ok: true as const, resumeToken: "chat-123", resumeType: "community:synth-harness", resumeProvenance: "launcher" as const }));
+      const mockAdapter = { runtime: "synth-harness", listInstalled: vi.fn(async () => []), project: vi.fn(async () => ({ projected: [], skipped: [], failed: [] })),
+        deliverStartup: vi.fn(async () => ({ delivered: 0, failed: [] })), checkReady: vi.fn(async () => ({ ready: true })), launchHarness };
+      await createOrchestrator().restore(snap.id, { adapters: { "synth-harness": mockAdapter } });
+      expect(launchHarness).toHaveBeenCalledTimes(1);
+      expect((launchHarness.mock.calls[0] as unknown[])[1]).toMatchObject({ resumeToken: "chat-123" });
+    } finally {
+      if (saved === undefined) delete process.env["OPENRIG_HOME"]; else process.env["OPENRIG_HOME"] = saved;
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it("a free-text runtime seat that wasn't launched for a community harness keeps the existing restore result", async () => {
     const rig = rigRepo.createRig("test-rig");
     db.prepare("INSERT INTO pods (id, rig_id, label) VALUES (?, ?, ?)").run("pod-free-text", rig.id, "Dev");
