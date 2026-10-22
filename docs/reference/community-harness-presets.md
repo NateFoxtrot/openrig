@@ -80,9 +80,12 @@ and the harness uses that name, so no record is needed.
 
 **A named conversation:** with `names_conversation`, a resume starts `command` with `OPENRIG_RESUME_REF` set to the saved
 name. The harness reopens it and must never create one under that name. Nothing reports back, so:
-- **a conversation that's gone** ends with the harness's own error and a pane back at a shell. The seat doesn't become
-  ready, keeps its saved name, and OpenRig starts nothing new. OpenRig can't tell "gone" from "failed to start", and the
-  pane shows which;
+- **readiness is process-only:** the seat reads as ready while something other than a shell runs in its pane. That
+  doesn't show the named conversation exists: a harness (or a launcher's own check) that hasn't yet found it gone reads
+  as ready, and the saved name stays unverified until something observes it;
+- **never creating one is the launcher's job:** a resume must not create a conversation under the saved name. When it's
+  gone, the harness or launcher ends with its error and the pane is back at a shell; the seat keeps its saved name, and
+  OpenRig starts nothing new, though the seat may already have read as ready;
 - **a former runtime's id** isn't passed to the harness, as below.
 
 **A reported conversation:** with `launch_result`, a resume (a restore included) starts the launcher with `OPENRIG_RESUME_REF` set to the
@@ -104,7 +107,8 @@ For a reported conversation, OpenRig also says so plainly when:
 [`community-harness-examples/hermes/`](community-harness-examples/hermes/) has a preset and a small launcher for Hermes
 Agent's CLI.
 - **The launcher:** it creates the session OpenRig named (`-c <name> --create-if-missing`), and on a resume reopens it
-  without `--create-if-missing`, with its own Hermes home per seat.
+  without `--create-if-missing`, with its own Hermes home per seat. A name that matches nothing ends with Hermes's own
+  "No session found" error.
 - **The preset:** it declares `names_conversation` but not `resume`, until reopening a named session, and a missing one,
   have been checked with a real Hermes.
 - **Stopping:** Hermes's CLI is a client of a gateway, so closing a seat's pane detaches it. Hermes finishes any turn it

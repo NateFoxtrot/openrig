@@ -35,7 +35,8 @@ interface CommunityHarnessAdapterDeps {
  * identity: a process alone doesn't prove which session it is. It projects nothing and refuses fork. It resumes only a
  * preset that declares `resume`. With `launch_result`, its launcher is told the conversation to reopen and reports what it
  * did, and a conversation it says is gone is never replaced by a new one. With `names_conversation`, OpenRig names each new
- * conversation and passes the saved name back on a resume; the harness reopens it or ends with its own error.
+ * conversation and passes the saved name back on a resume. Nothing reports back, so a named seat's readiness is
+ * process-only: its saved name is unverified until something observes it.
  */
 export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
   constructor(readonly runtime: string, private readonly deps: CommunityHarnessAdapterDeps) {}
@@ -126,8 +127,9 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
   }
 
   /** OpenRig names the conversation: a new one gets a fresh name in OPENRIG_CONVERSATION, and a resume passes the saved name
-   *  in OPENRIG_RESUME_REF. Nothing reports back, so the name is recorded as passed, not observed. A conversation that's gone
-   *  ends with the harness's own error and a pane back at a shell, which readiness reports; OpenRig never starts a new one. */
+   *  in OPENRIG_RESUME_REF. Nothing reports back, so the name is recorded as passed, not observed, and readiness says only
+   *  that a process runs: a harness that hasn't yet found a gone conversation reads as ready. Never creating one on a
+   *  resume is the launcher's job; OpenRig never asks for a new conversation on a resume. */
   private async launchNamed(session: string, preset: string, resumeRef: string | undefined): Promise<HarnessLaunchResult> {
     const name = resumeRef ?? conversationName(session);
     const program = `/usr/bin/env ${resumeRef ? "OPENRIG_RESUME_REF" : "OPENRIG_CONVERSATION"}=${shellQuote(name)} ${preset}`;
