@@ -27,9 +27,9 @@ describe("the documented Hermes launcher and preset", () => {
     expect(started).toBe(`chat -c openrig-dev-impl-1a2b3c4d --create-if-missing --provider openrouter HOME=${home}`);
   });
 
-  it("reopens the named session on a resume, and never asks Hermes to create one", () => {
-    const { started } = run({ OPENRIG_RESUME_REF: "openrig-dev-impl-1a2b3c4d" });
-    expect(started).toMatch(/^chat -c openrig-dev-impl-1a2b3c4d --provider openrouter HOME=/);
+  it("reopens the named session on a resume with none of the creation flags, which Hermes refuses there", () => {
+    const { started, home } = run({ OPENRIG_RESUME_REF: "openrig-dev-impl-1a2b3c4d" });
+    expect(started).toBe(`chat -c openrig-dev-impl-1a2b3c4d HOME=${home}`);
   });
 
   it("starts nothing when OpenRig passed no name", () => {
