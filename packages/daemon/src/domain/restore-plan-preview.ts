@@ -172,9 +172,11 @@ function intendedActionFor(
   const occupant = resolution.kind === "resolved" ? resolution.session : null;
   const policy = effectiveRestorePolicy(seat, occupant?.restorePolicy);
   // As apply: a launch-only community harness (its preset declares no resume) forecasts a decision, not a resume.
-  if (policy === "resume_if_possible" && occupant && communityHarnessOf(occupant.communityHarness, seat.currentRuntime)
-    && !communityHarnessResumes(seat.currentRuntime)) {
-    return { intendedAction: "awaiting-decision", reason: communityLaunchOnlyRestoreReason(seat.currentRuntime, absentHistory.logicalId) };
+  // The snapshot's saved runtime, as apply reads it.
+  const savedRuntime = seat.savedRuntime ?? seat.currentRuntime;
+  if (policy === "resume_if_possible" && occupant && communityHarnessOf(occupant.communityHarness, savedRuntime)
+    && !communityHarnessResumes(savedRuntime)) {
+    return { intendedAction: "awaiting-decision", reason: communityLaunchOnlyRestoreReason(savedRuntime, absentHistory.logicalId) };
   }
   const sourceRecorded = !!occupant?.resumeType && occupant.resumeType !== "none";
   if (policy === "resume_if_possible" && sourceRecorded && occupant?.resumeToken) {

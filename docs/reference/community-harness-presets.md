@@ -11,13 +11,13 @@ installed.
 
 ```yaml
 format: 1
-name: cursor                    # must match the file name: lowercase letters, digits and hyphens
-command: openrig-cursor-launch  # one program and its arguments, typed into the seat's pane
+name: example-harness           # must match the file name: lowercase letters, digits and hyphens
+command: example-launch         # one program and its arguments, typed into the seat's pane
 maintainer: Example Maintainer
 limits:                         # what the maintainer says doesn't work
   - fork unsupported
 launch_result: true             # optional: the launcher reports the conversation it created (below)
-resume: true                    # optional, needs launch_result: the launcher can reopen a reported conversation
+resume: true                    # optional, needs launch_result; declare it only once your harness's resume is checked
 ```
 
 - **`command`** is a single program and its arguments. Shell syntax such as `|`, `&&`, `;`, redirections or `$(…)`
