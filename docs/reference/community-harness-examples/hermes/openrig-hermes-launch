@@ -1,0 +1,26 @@
+#!/bin/sh
+# A reference launcher for Hermes Agent's CLI as an OpenRig community harness. Copy it, own it, and change it: OpenRig
+# doesn't ship or run it. It follows docs/reference/community-harness-presets.md (`names_conversation`):
+#   - a new launch (OPENRIG_CONVERSATION set): Hermes creates the session titled with that name;
+#   - a resume (OPENRIG_RESUME_REF set): Hermes reopens that session, and never creates one. A name that matches nothing
+#     ends with Hermes's own "No session found" error, so a gone conversation isn't replaced by a new one.
+# Arguments after the launcher's name (a provider and model, say) go to every launch and resume alike: Hermes fixes them
+# when the session is created, and a resume may only repeat them.
+set -eu
+
+hermes="${OPENRIG_HERMES:-hermes}"
+
+# Each seat gets its own Hermes home, so seats don't share sessions or a gateway, and a seat's stop concerns only its own.
+# Its provider settings come from the arguments or the environment (an OpenRouter key, say), not the person's ~/.hermes.
+HERMES_HOME="${OPENRIG_HOME:-$HOME/.openrig}/state/hermes/${OPENRIG_NODE_ID:-${OPENRIG_SESSION_NAME:-default}}"
+export HERMES_HOME
+mkdir -p "$HERMES_HOME"
+
+if [ -n "${OPENRIG_RESUME_REF:-}" ]; then
+  exec "$hermes" chat -c "$OPENRIG_RESUME_REF" "$@"
+fi
+if [ -n "${OPENRIG_CONVERSATION:-}" ]; then
+  exec "$hermes" chat -c "$OPENRIG_CONVERSATION" --create-if-missing "$@"
+fi
+echo "openrig-hermes-launch: OpenRig passed no conversation name; is names_conversation set in the preset?" >&2
+exit 2

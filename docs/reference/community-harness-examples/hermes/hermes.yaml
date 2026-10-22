@@ -1,0 +1,11 @@
+# Install as $OPENRIG_HOME/community-harnesses/hermes.yaml, with openrig-hermes-launch on the seat's PATH.
+format: 1
+name: hermes
+command: openrig-hermes-launch --provider openrouter --model anthropic/claude-sonnet-4
+maintainer: Your name or team
+limits:
+  - resume not declared until reopening a named session, and a missing one, have been checked with a real Hermes
+  - closing a seat's pane detaches it; Hermes finishes any accepted turn, and its gateway exits when idle
+  - no guidance, skills or startup files are placed
+  - needs-input and approval prompts are read from the screen only
+names_conversation: true
