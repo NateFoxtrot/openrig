@@ -45,15 +45,22 @@ Some harnesses create their own conversation id before they start. Cursor's `cur
 The seat still starts, with its identity **unavailable** and the reason named, when the record:
 - wasn't written;
 - belongs to another attempt or another harness;
-- isn't JSON, or isn't format 1;
+- isn't JSON, isn't format 1, or is larger than 64 KiB;
 - has an unusable `nativeRef` (empty, too long, or containing spaces or control characters);
 - names no producer;
 - or is reached through a link.
 
 None of these means the conversation is gone.
 
-A reported id doesn't make the harness resumable. When OpenRig would resume such a seat (a restore, for example), it says
-resume is unsupported and starts a new conversation, as it did before.
+A reported id doesn't make the harness resumable, and nothing resumes it. A restore stops and asks, as it did before:
+re-run it with `--fresh <seat>` only if you want a new conversation. Elsewhere, a resume says it's unsupported, and a new
+conversation starts only where the caller allows a fresh start.
+
+**Good to know:**
+- **The variables are passed with `/usr/bin/env`,** so `launch_result` needs a POSIX system.
+- **A launcher that never writes its record** adds up to 20 seconds to each launch, while OpenRig waits for it.
+- **Records are kept,** one small file per attempt, under `$OPENRIG_HOME/state/launch-results/<session>/`. A record
+  larger than 64 KiB isn't read.
 
 **Not supported for community harnesses:** restarting a seat in place (`rig seat restart` is for Codex seats) and
 switching harness on a running seat. Each says so before anything changes.

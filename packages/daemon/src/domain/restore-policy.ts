@@ -26,6 +26,12 @@ export function isOrdinaryTerminalSeat(seat: RestoreSeatFacts): boolean {
  *  would wait for a decision on every restore after its first. So `resume_if_possible` means
  *  `relaunch_fresh` for an ordinary terminal seat (see isOrdinaryTerminalSeat); any other policy, and
  *  any other seat, is read as saved. */
+/** Why a community harness's seat waits for a decision at restore: its preset is launch-only, so nothing resumes it, a
+ *  conversation its launcher reported included. Apply returns this; the preview forecasts it. */
+export function communityLaunchOnlyRestoreReason(runtime: string | null | undefined, logicalId: string): string {
+  return `Resume is unsupported for community harness "${runtime}": its preset is launch-only. No session was started, and the earlier conversation is left as it is. Re-run with --fresh ${logicalId} only if you want a new conversation.`;
+}
+
 export function effectiveRestorePolicy(seat: RestoreSeatFacts, policy: string | null | undefined): string {
   const saved = policy ?? "resume_if_possible";
   return saved === "resume_if_possible" && isOrdinaryTerminalSeat(seat) ? "relaunch_fresh" : saved;

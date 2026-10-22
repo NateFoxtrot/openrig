@@ -12,6 +12,8 @@ import { getDefaultOpenRigPath } from "../openrig-compat.js";
 
 export const LAUNCH_RESULT_FORMAT = 1;
 const MAX_REF = 512;
+/** A record is a few hundred bytes; anything larger isn't one (a launcher writing its log there, say) and isn't read. */
+const MAX_RECORD_BYTES = 64 * 1024;
 
 export interface LaunchAttempt { attempt: string; dir: string; file: string }
 export type LaunchResultRead = { ok: true; nativeRef: string; producer: string } | { ok: false; reason: string };
@@ -34,6 +36,7 @@ export function readLaunchResult(attempt: LaunchAttempt, harness: string, root: 
   let stat: fs.Stats;
   try { stat = fs.lstatSync(attempt.file); } catch { return unusable("wasn't written"); }
   if (!stat.isFile()) return unusable("isn't a plain file");
+  if (stat.size > MAX_RECORD_BYTES) return unusable(`is too large (${stat.size} bytes; a record is at most ${MAX_RECORD_BYTES})`);
   try {
     // The folder and the file must be exactly where OpenRig named them: no link on the way.
     const anchor = fs.realpathSync(root);
