@@ -68,25 +68,34 @@ export class CommunityHarnessRuntimeAdapter implements RuntimeAdapter {
       // caller start a new conversation as it did before (it never resumes one silently).
       return found.ok && found.preset.launchResult
         ? { ok: false, recovery: "retry_fresh",
-          error: `Resume is unsupported: community harness "${this.runtime}" is launch-only, so its reported conversation isn't reopened; a new one starts.` }
+          error: `Resume is unsupported: community harness "${this.runtime}" is launch-only, so its reported conversation isn't reopened. A new conversation starts only where the caller allows a fresh start; a restore stops and asks.` }
         : { ok: false, error: `Resume is unsupported: community harness "${this.runtime}" is launch-only. No session was started.` };
     }
     if (!found.ok) return { ok: false, error: found.message };
     const session = binding.tmuxSession ?? opts.name;
     let attempt: LaunchAttempt | undefined;
     let program = found.preset.command;
+    // The record is optional: a folder that can't be made leaves the identity unavailable, and the harness still launches.
+    let storageNote: string | undefined;
     if (found.preset.launchResult) {
-      try { attempt = newLaunchAttempt(session, this.deps.launchResultRoot?.() ?? launchResultRoot()); }
-      catch (error) { return { ok: false, error: `Couldn't start community harness "${this.runtime}": its launch-result folder: ${(error as Error).message}` }; }
-      program = `/usr/bin/env OPENRIG_LAUNCH_RESULT=${shellQuote(attempt.file)} OPENRIG_LAUNCH_ATTEMPT=${attempt.attempt}`
-        + `${resumeRef ? ` OPENRIG_RESUME_REF=${shellQuote(resumeRef)}` : ""} ${program}`;
+      try {
+        attempt = newLaunchAttempt(session, this.deps.launchResultRoot?.() ?? launchResultRoot());
+        program = `/usr/bin/env OPENRIG_LAUNCH_RESULT=${shellQuote(attempt.file)} OPENRIG_LAUNCH_ATTEMPT=${attempt.attempt}`
+          + `${resumeRef ? ` OPENRIG_RESUME_REF=${shellQuote(resumeRef)}` : ""} ${program}`;
+      } catch (error) {
+        // A resume needs its record: without it the launcher can't be told what to reopen, so nothing starts.
+        if (resumeRef) {
+          return { ok: false, error: `Couldn't resume community harness "${this.runtime}": its launch-result folder couldn't be made (${(error as Error).message}); nothing was started.` };
+        }
+        storageNote = `community harness "${this.runtime}": its launch identity is unavailable: its launch-result folder couldn't be made (${(error as Error).message})`;
+      }
     }
     const command = this.deps.seatLaunchEnvironment
       ? await this.deps.seatLaunchEnvironment.command(session, program, { runtime: this.runtime })
       : program;
     const sent = await this.deps.tmux.sendShellCommand(session, command, undefined, { stageIfLong: true, execInScript: true });
     if (!sent.ok) return { ok: false, error: `Couldn't start community harness "${this.runtime}": ${sent.message}` };
-    if (!attempt) return { ok: true };
+    if (!attempt) return storageNote ? { ok: true, warnings: [storageNote] } : { ok: true };
     const read = await waitForLaunchResult(attempt, this.runtime, { ...this.deps.launchResultWait, root: this.deps.launchResultRoot?.() ?? launchResultRoot() });
     if (resumeRef) {
       // A conversation that's gone is never replaced by a new one: nothing started, and the person decides.

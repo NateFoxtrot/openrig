@@ -63,10 +63,29 @@ describe("a community harness whose launcher reports its conversation", () => {
     expect(await app.launchHarness(binding, { name: "w@r" })).toEqual({ ok: true, warnings: [expect.stringContaining("isn't a plain file")] });
   });
 
+  it("launches once without a record when its record folder can't be made: the identity is unavailable, the launch isn't refused", async () => {
+    const blocked = join(scratch("harness-blocked-"), "a-file");
+    writeFileSync(blocked, "not a folder");
+    const presets = scratch("harness-presets-");
+    writeFileSync(join(presets, "synth.yaml"), PRESET);
+    const sendShellCommand = vi.fn(async () => ({ ok: true as const }));
+    const app = new CommunityHarnessRuntimeAdapter("synth", { tmux: { hasSession: vi.fn(async () => true), getPaneCommand: vi.fn(async () => "node"), sendShellCommand },
+      presetsDir: () => presets, launchResultRoot: () => blocked });
+    expect(await app.launchHarness(binding, { name: "w@r" }))
+      .toEqual({ ok: true, warnings: [expect.stringContaining("its launch identity is unavailable: its launch-result folder couldn't be made")] });
+    expect(sendShellCommand).toHaveBeenCalledTimes(1);
+    expect(sendShellCommand.mock.calls[0]![1]).toBe("synth-launch --serve");
+  });
+
+  it("doesn't read a record larger than 64 KiB", async () => {
+    const { app } = seat((a) => JSON.stringify({ ...good(a), padding: "x".repeat(70_000) }));
+    expect(await app.launchHarness(binding, { name: "w@r" })).toEqual({ ok: true, warnings: [expect.stringContaining("is too large")] });
+  });
+
   it("doesn't reopen a reported conversation for a launch-only harness: it says so and a new one starts", async () => {
     const { app, sendShellCommand } = seat(good);
     expect(await app.launchHarness(binding, { name: "w@r", resumeToken: "chat-123" })).toEqual({ ok: false, recovery: "retry_fresh",
-      error: `Resume is unsupported: community harness "synth" is launch-only, so its reported conversation isn't reopened; a new one starts.` });
+      error: `Resume is unsupported: community harness "synth" is launch-only, so its reported conversation isn't reopened. A new conversation starts only where the caller allows a fresh start; a restore stops and asks.` });
     expect(sendShellCommand).not.toHaveBeenCalled();
   });
 
