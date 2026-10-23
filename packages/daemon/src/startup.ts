@@ -615,6 +615,8 @@ export async function createDaemon(opts?: DaemonOptions): Promise<DaemonResult> 
   const launchSessionEnv: Record<string, string | undefined> = {
     PATH: process.env.PATH,
     OPENRIG_HOME,
+    OPENRIG_DB: dbPath,
+    TMUX_TMPDIR: process.env.TMUX_TMPDIR,
     OPENRIG_PORT: openRigPort,
     OPENRIG_HOST: openRigHost,
     OPENRIG_URL: resolvedActivityHookUrl,
