@@ -85,6 +85,17 @@ describe("catalog project identity across work reads", () => {
       expect(detail.status).toBe(200); expect(detail.body.qitemIds).toEqual([`qitem-${id}`]);
     }
   });
+  it("accepts a symlink spelling of the selected root and still refuses a different project", async () => {
+    const alias = path.join(root, "a-link");
+    fs.symlinkSync(path.join(root, "a"), alias, "dir");
+    const selected = await get(`/api/scopes?project=a&projectRoot=${encodeURIComponent(`${alias}/.`)}`);
+    expect(selected.status).toBe(200);
+    fs.unlinkSync(alias);
+    fs.symlinkSync(path.join(root, "b"), alias, "dir");
+    const changed = await get(`/api/scopes?project=a&projectRoot=${encodeURIComponent(alias)}`);
+    expect(changed.status).toBe(409);
+    expect(changed.body.error).toBe("project_changed");
+  });
   it("reports removed, changed, malformed and escaping sources without substituting another project", async () => {
     fs.renameSync(path.join(root, "a/SPEC.md"), path.join(root, "a/SPEC.retained.md"));
     let scopes = await get("/api/scopes?detail=1&project=a"); expect(scopes.status).toBe(409); expect(scopes.body.error).toBe("project_unavailable");
