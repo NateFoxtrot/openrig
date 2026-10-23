@@ -12,7 +12,8 @@ set -eu
 hermes="${OPENRIG_HERMES:-hermes}"
 
 # Each seat gets its own Hermes home, so seats don't share sessions or a gateway, and a seat's stop concerns only its own.
-# Its provider settings come from the arguments or the environment (an OpenRouter key, say), not the person's ~/.hermes.
+# Its settings (model, provider, agent.max_turns) come from that home's config.yaml, and its key from the environment
+# (an OpenRouter key, say), not from the person's ~/.hermes.
 HERMES_HOME="${OPENRIG_HOME:-$HOME/.openrig}/state/hermes/${OPENRIG_NODE_ID:-${OPENRIG_SESSION_NAME:-default}}"
 export HERMES_HOME
 mkdir -p "$HERMES_HOME"

@@ -107,11 +107,12 @@ For a reported conversation, OpenRig also says so plainly when:
 [`community-harness-examples/hermes/`](community-harness-examples/hermes/) has a preset and a small launcher for Hermes
 Agent's CLI.
 - **The launcher:** it creates the session OpenRig named (`-c <name> --create-if-missing`), and on a resume reopens it
-  without `--create-if-missing`, with its own Hermes home per seat.
+  without `--create-if-missing`, with its own Hermes home per seat. A name that matches nothing ends with Hermes's own
+  "No session found" error.
 - **Settings go in the seat's Hermes `config.yaml`, not in flags:** Hermes's CLI creates a named session with no launch
   flags and then reopens it, refusing any creation flag (model, provider, `--max-turns`) that differs. So the preset's
-  command carries none, and each seat's `config.yaml`, in its Hermes home, sets them. A name that matches nothing ends with Hermes's own
-  "No session found" error.
+  command carries none, and each seat's `config.yaml`, in its Hermes home, sets them before the seat's first start:
+  the model and provider, and `agent.max_turns` if you want a cap (nothing else sets it once the flag is gone).
 - **The preset:** it declares `names_conversation` but not `resume`, until reopening a named session, and a missing one,
   have been checked with a real Hermes.
 - **Stopping:** Hermes's CLI is a client of a gateway, so closing a seat's pane detaches it. Hermes finishes any turn it
