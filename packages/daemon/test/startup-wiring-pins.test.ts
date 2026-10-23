@@ -13,6 +13,7 @@
 // its todo graduates to a real pin.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { createDaemon } from "../src/startup.js";
@@ -46,10 +47,9 @@ beforeAll(async () => {
     throw Object.assign(new Error("no socket"), { code: "ENOENT" });
   };
   const tmuxExec: ExecFn = async () => "";
-  // production passes the RESOLVED file dbPath (index.ts) — :memory: is the
-  // test-friendly default that deliberately skips the slow-op recorder; the
-  // wiring pin must compose like production.
-  const result = await createDaemon({ cmuxFactory, tmuxExec, dbPath: path.join(scratch, "selected.sqlite") });
+  // A file DB composes the slow-op recorder that :memory: deliberately skips.
+  // A relative selection must still reach seats whose cwd differs from the daemon.
+  const result = await createDaemon({ cmuxFactory, tmuxExec, dbPath: path.relative(process.cwd(), path.join(scratch, "selected.sqlite")) });
   db = result.db;
   deps = result.deps;
   contextMonitor = result.contextMonitor;
@@ -91,12 +91,17 @@ describe("P16 — AppDeps members with safety semantics are composed (definednes
 describe("P16 — domain-internal safety injections (the recurred class, pinned at the wire)", () => {
   it("new seats receive the selected database and configured tmux directory, not a stale DB override", () => {
     const env = deps.tmuxAdapter.launchEnvironment!().env;
-    expect(env.OPENRIG_DB).toBe(db.name);
+    expect(env.OPENRIG_DB).toBe(path.resolve(db.name));
     expect(env.OPENRIG_DB).not.toBe(process.env.OPENRIG_DB);
     expect(env.TMUX_TMPDIR).toBe(process.env.TMUX_TMPDIR);
     const selected = priv<Record<string, string>>(deps.nodeLauncher, "sessionEnv");
-    expect(selected.OPENRIG_DB).toBe(db.name);
+    expect(selected.OPENRIG_DB).toBe(path.resolve(db.name));
     expect(selected.TMUX_TMPDIR).toBe(process.env.TMUX_TMPDIR);
+    const seatCwd = path.join(scratch, "seat"); fs.mkdirSync(seatCwd);
+    const fromSeat = execFileSync(process.execPath, ["-e", "process.stdout.write(require('node:fs').realpathSync(process.env.OPENRIG_DB))"], {
+      cwd: seatCwd, env: { ...process.env, ...selected }, encoding: "utf8",
+    });
+    expect(fromSeat).toBe(fs.realpathSync(db.name));
   });
 
   it("QueueRepository.validateRig is the topology gate, not the permissive default (recurrence #1)", async () => {
