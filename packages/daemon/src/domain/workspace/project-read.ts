@@ -90,8 +90,8 @@ export function projectById(c: Pick<ReadContext, "get">, id: string): ProjectRea
 }
 /** Prepared roots may spell the same directory through a symlink or dot segments. */
 export function sameProjectRoot(expected: string, actual: string): boolean {
-  try { return fs.realpathSync(expected) === fs.realpathSync(actual); }
-  catch { return false; } // An unavailable prepared root cannot confirm project identity.
+  try { return expected === actual || fs.realpathSync(expected) === fs.realpathSync(actual); }
+  catch { return false; } // Distinct unavailable paths cannot confirm project identity.
 }
 export function selectedProject(c: ReadContext): ProjectRead | null {
   const id = c.req.query("project");
