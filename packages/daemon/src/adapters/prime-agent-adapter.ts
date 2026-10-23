@@ -46,11 +46,21 @@ export class PrimeAgentAdapter implements RuntimeAdapter {
   }
 
   async project(plan: ProjectionPlan, binding: NodeBinding): Promise<ProjectionResult> {
-    // prime-agent reads skills from .agents/skills/ in cwd (projected by the
-    // OpenRig workspace layer). Acknowledge all entries to avoid
-    // projection-failed warnings.
-    const projected = (plan.entries ?? []).map((e) => e.effectiveId);
-    return { projected, skipped: [], failed: [] };
+    // prime-agent reads skills from .agents/skills/ in the seat cwd. Report an
+    // entry as projected only once its SKILL.md actually exists at the runtime
+    // target; anything missing is surfaced as failed rather than silently
+    // acknowledged.
+    const projected: string[] = [];
+    const failed: Array<{ effectiveId: string; error: string }> = [];
+    for (const e of plan.entries ?? []) {
+      const target = nodePath.join(binding.cwd, ".agents", "skills", e.effectiveId, "SKILL.md");
+      if (this.opts.fsOps.exists(target)) {
+        projected.push(e.effectiveId);
+      } else {
+        failed.push({ effectiveId: e.effectiveId, error: `skill not materialized at runtime target: ${target}` });
+      }
+    }
+    return { projected, skipped: [], failed };
   }
 
   async deliverStartup(
@@ -75,14 +85,26 @@ export class PrimeAgentAdapter implements RuntimeAdapter {
           warnings.push(`skipped optional ${file.path}: unreadable`);
           continue;
         }
-        if (hint === "send_text" && sendInteractiveText) {
+        if (hint === "send_text") {
+          // Interactive delivery requires the callback; without it a required
+          // file is a failure and an optional file is a warning — never count
+          // as delivered.
+          if (!sendInteractiveText) {
+            if (file.required) {
+              failed.push({ path: file.path, error: "no interactive channel available" });
+            } else {
+              warnings.push(`optional ${file.path}: no interactive channel available`);
+            }
+            continue;
+          }
           await sendInteractiveText(content);
           delivered++;
         } else {
           // guidance_merge / skill_install: prime-agent reads these from disk on
-          // its own; deliver the path so the agent knows where to look.
+          // its own; deliver the absolute path so the agent can resolve files
+          // that live outside binding.cwd.
           if (sendInteractiveText) {
-            await sendInteractiveText(`Read ${file.path} before doing anything else.`);
+            await sendInteractiveText(`Read ${file.absolutePath} before doing anything else.`);
           }
           delivered++;
         }
@@ -139,12 +161,19 @@ export class PrimeAgentAdapter implements RuntimeAdapter {
       if (!content) {
         return { ready: false, reason: "pane is empty", code: "pane_empty" };
       }
-      // prime-agent TUI shows a status bar with model info and a manage prompt
-      if (content.includes("manage") || content.includes("prime-agent") || (content.includes("\u00b7") && content.includes("%"))) {
+      // Only TUI-specific signals count as ready. The echoed launch command
+      // (e.g. `prime-agent --thinking low`) is stripped from consideration so a
+      // failed/exited launch can never satisfy readiness, and a shell prompt
+      // means the harness never started.
+      const lines = content.split("\n").filter((l) => !l.includes("prime-agent --"));
+      const pane = lines.join("\n");
+      const tuiSignal =
+        pane.includes("\u2190 manage") ||          // left manage-prompt marker drawn by the TUI
+        /\u00b7\s*\d+%/.test(pane);               // status-bar model separator followed by a percent token
+      if (tuiSignal) {
         return { ready: true };
       }
-      // Shell prompt = agent not launched yet
-      if (content.includes("$") || content.includes("%") || content.includes(">")) {
+      if (pane.includes("$") || pane.includes(">")) {
         return { ready: false, reason: "shell prompt visible; agent not launched", code: "not_launched" };
       }
       return { ready: false, reason: "unknown pane state", code: "unknown" };
