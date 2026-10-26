@@ -184,7 +184,7 @@ function errorNotice(details: unknown[], runtime: RunnerRuntime): string {
   const text = details.map(detail => typeof detail === "string"
     ? stripVTControlCharacters(detail).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim()
     : "").find(Boolean) ?? "";
-  const marker = runtime === "omp" ? "[omp-runner] ERROR" : PI_RUNNER_ERROR_MARKER;
+  const marker = runtime === "prime-agent" ? "[prime-agent-runner] ERROR" : runtime === "omp" ? "[omp-runner] ERROR" : PI_RUNNER_ERROR_MARKER;
   return `${marker} ${text.slice(0, 400) || "request failed"}${runtime === "pi" ? piCredentialHint(text) : ""}`;
 }
 
@@ -935,7 +935,7 @@ export function parseRunnerArgs(argv: string[]): RunnerArgs {
       case "--session-name": args.sessionName = next(); break;
       case "--runtime": {
         const runtime = next();
-        if (runtime !== "pi" && runtime !== "omp") throw new Error(`unsupported runtime: ${runtime}`);
+        if (runtime !== "pi" && runtime !== "omp" && runtime !== "prime-agent") throw new Error(`unsupported runtime: ${runtime}`);
         args.runtime = runtime;
         break;
       }
@@ -1174,6 +1174,23 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   // shim) cannot find its target there, so resolve the real binary first,
   // with the runner's own environment.
   let command: string = runtime;
+  if (runtime === "prime-agent") {
+    const resolved = resolveRuntimeExecutable("prime-agent", process.env);
+    if (!resolved.ok) {
+      console.error(`[prime-agent-runner] ERROR launch: ${resolved.error}`);
+      // Record the exit for this launch so the adapter fails it now instead
+      // of waiting out its readiness timeout. The durable cursor survives.
+      const at = new Date().toISOString();
+      try {
+        const pending = parsePiRunnerState(fs.readFileSync(paths.runnerStatePath, "utf8"));
+        const exitedState: PiRunnerState = { ready: false, launchId: args.launchId, lastEntryId: pending?.lastEntryId, updatedAt: at, exited: { code: 127, at } };
+        fs.writeFileSync(paths.runnerStatePath, JSON.stringify(exitedState));
+      } catch { /* the pane ERROR marker still fails readiness */ }
+      process.exitCode = 127;
+      return;
+    }
+    command = resolved.path;
+  }
   if (runtime === "omp") {
     const resolved = resolveRuntimeExecutable("omp", process.env);
     if (!resolved.ok) {
