@@ -967,6 +967,12 @@ export function parseRunnerArgs(argv: string[]): RunnerArgs {
     if (!flags.has("--approval-mode") || flags.has("--approve") || flags.has("--no-approve")) {
       throw new Error("OMP requires --approval-mode yolo or always-ask, not Pi trust flags");
     }
+  } else if (args.runtime === "prime-agent") {
+    // prime-agent identities are isolated by --session-dir; approvals flow over the RPC
+    // extension bridge, so neither Pi trust flags nor OMP approval modes apply.
+    if (flags.has("--approval-mode") || flags.has("--approve") || flags.has("--no-approve")) {
+      throw new Error("prime-agent takes no trust flags (approvals flow over RPC)");
+    }
   } else if (!args.trust || flags.has("--approval-mode")) {
     throw new Error("an explicit trust flag is required: --approve or --no-approve");
   }
@@ -1381,7 +1387,9 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   });
   const input = createRunnerInput(process.stdin, process.stdout, (block) => core.handleUserBlock(block));
 
-  if (runtime === "pi") {
+  if (runtime === "pi" || runtime === "prime-agent") {
+    // prime-agent is a Pi fork with intact --mode rpc: same child lifecycle and
+    // unconditional RPC handshake (get_state drives the transport `ready` frame).
     child.on("error", (err) => {
       console.error(`${PI_RUNNER_ERROR_MARKER} failed to spawn pi: ${err.message}`);
       const code = (err as NodeJS.ErrnoException).code === "ENOENT" ? 127 : 1;

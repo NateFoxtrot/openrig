@@ -307,7 +307,7 @@ export function buildPiRunnerCommand(opts: PiRunnerLaunchOpts): string {
   if (opts.forkRef) {
     parts.push("--fork", shellQuote(opts.forkRef));
   }
-  if (opts.usageFacts && opts.runtime === "pi") {
+  if (opts.usageFacts && (opts.runtime ?? "pi") === "pi") {
     parts.push("--usage-facts");
     if (opts.openRouterCharge) parts.push("--openrouter-charge");
   }
